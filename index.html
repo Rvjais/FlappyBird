@@ -10,6 +10,10 @@
             padding: 0;
             box-sizing: border-box;
             font-family: 'Arial', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
         }
         
         body {
@@ -20,6 +24,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            touch-action: manipulation;
         }
         
         #game-canvas {
@@ -28,6 +33,7 @@
             background-color: #70c5ce;
             display: block;
             transition: filter 0.8s ease;
+            touch-action: none;
         }
         
         .canvas-fade {
@@ -62,6 +68,7 @@
             color: white;
             text-align: center;
             z-index: 20;
+            cursor: pointer;
         }
         
         .start-screen h1 {
@@ -90,6 +97,7 @@
             display: none;
             width: 80%;
             max-width: 400px;
+            cursor: pointer;
         }
         
         .game-over h2 {
@@ -137,32 +145,54 @@
                 font-size: 6vw;
             }
         }
+
+        /* Add a tap indicator for mobile */
+        .tap-indicator {
+            position: absolute;
+            bottom: 10vh;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-size: 3vh;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            animation: pulse 1.5s infinite;
+            pointer-events: none;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { opacity: 0.7; }
+        }
     </style>
 </head>
 <body>
     <canvas id="game-canvas"></canvas>
     <div class="score-display">0</div>
-    <div class="start-screen">
-        <h1>FLAPPY BIRD</h1>
-        <p>Press SPACE or TAP to start and flap</p>
-        <p>Avoid the pipes and don't hit the ground!</p>
+    <div class="start-screen" id="start-screen">
+        <h1>FLAPPY HR</h1>
+        <p>Press SPACE or TAP to make HR fly</p>
+        <p>Avoid the Ranveer and don't hit the ground!</p>
+        <div class="tap-indicator">TAP ANYWHERE TO START</div>
     </div>
-    <div class="game-over">
-        <h2>Game Over!</h2>
+    <div class="game-over" id="game-over">
+        <h2>App Haar Gaye Mahodaya !</h2>
         <p>Your score: <span id="final-score">0</span></p>
-        <p>Press SPACE or TAP to play again</p>
+        <p>Noobada player</p>
     </div>
 
     <!-- Background music during gameplay -->
     <audio id="background-music" loop>
         <!-- Replace with your background music -->
-        <source src="music.m4a" type="audio/mpeg">
+        <source src="./music.m4a" type="audio/mpeg">
+        <source src="./music.mp3" type="audio/mpeg">
     </audio>
 
     <!-- Game over music -->
     <audio id="game-over-music">
         <!-- Replace with your game over music -->
         <source src="./over.m4a" type="audio/mpeg">
+        <source src="./over.mp3" type="audio/mpeg">
     </audio>
 
     <script>
@@ -171,8 +201,8 @@
         const ctx = canvas.getContext('2d');
         const scoreDisplay = document.querySelector('.score-display');
         const finalScoreDisplay = document.getElementById('final-score');
-        const gameOverScreen = document.querySelector('.game-over');
-        const startScreen = document.querySelector('.start-screen');
+        const gameOverScreen = document.getElementById('game-over');
+        const startScreen = document.getElementById('start-screen');
         const backgroundMusic = document.getElementById('background-music');
         const gameOverMusic = document.getElementById('game-over-music');
 
@@ -207,14 +237,45 @@
         
         let sizes = getSizes();
         
-        // Load images
+        // Load images with error handling
         let birdImg = new Image();
-        // Replace with your bird image URL
-        birdImg.src = './bird.jpeg';
-        
         let pipeImg = new Image();
-        // Replace with your pipe image URL
-        pipeImg.src = './pipe.png';
+        
+        // Try to load custom images, fallback to generated ones if they fail
+        function loadImages() {
+            // Load bird image
+            birdImg.onload = function() {
+                console.log("Bird image loaded successfully");
+                checkAllImagesLoaded();
+            };
+            birdImg.onerror = function() {
+                console.log("Failed to load bird image, using fallback");
+                createFallbackBirdImage();
+            };
+            birdImg.src = './bird.jpeg';
+            
+            // Load pipe image
+            pipeImg.onload = function() {
+                console.log("Pipe image loaded successfully");
+                checkAllImagesLoaded();
+            };
+            pipeImg.onerror = function() {
+                console.log("Failed to load pipe image, using fallback");
+                createFallbackPipeImage();
+            };
+            pipeImg.src = './pipe.png';
+        }
+        
+        let imagesLoaded = 0;
+        const totalImages = 2;
+        
+        function checkAllImagesLoaded() {
+            imagesLoaded++;
+            if (imagesLoaded === totalImages) {
+                console.log("All images loaded");
+                draw();
+            }
+        }
 
         // Bird object
         const bird = {
@@ -405,6 +466,8 @@
         function startGame() {
             if (gameRunning) return;
             
+            console.log("Starting game...");
+            
             // Hide start screen
             startScreen.style.display = 'none';
             
@@ -506,7 +569,9 @@
             
             // Remove the element after animation completes
             setTimeout(() => {
-                document.body.removeChild(zoomElement);
+                if (zoomElement.parentNode) {
+                    document.body.removeChild(zoomElement);
+                }
                 isBirdZooming = false;
             }, 1500);
         }
@@ -524,51 +589,52 @@
             }
         }
         
-        // Event listeners
-        document.addEventListener('keydown', function(e) {
-            if (e.code === 'Space') {
-                flapBird();
-                e.preventDefault();
-            }
-        });
-        
-        // Mouse and touch controls
-        canvas.addEventListener('click', flapBird);
-        canvas.addEventListener('touchstart', function(e) {
-            flapBird();
-            e.preventDefault();
-        });
-        
-        // Draw initial state
-        draw();
-        
-        // Preload images and draw when loaded
-        let imagesLoaded = 0;
-        const totalImages = 2;
-        
-        function checkAllImagesLoaded() {
-            imagesLoaded++;
-            if (imagesLoaded === totalImages) {
-                draw();
-            }
+        // Improved event listeners
+        function setupEventListeners() {
+            // Keyboard controls
+            document.addEventListener('keydown', function(e) {
+                if (e.code === 'Space') {
+                    flapBird();
+                    e.preventDefault();
+                }
+            });
+            
+            // Click controls for both start screen and canvas
+            startScreen.addEventListener('click', flapBird);
+            startScreen.addEventListener('touchend', flapBird);
+            
+            canvas.addEventListener('click', flapBird);
+            canvas.addEventListener('touchend', flapBird);
+            
+            gameOverScreen.addEventListener('click', flapBird);
+            gameOverScreen.addEventListener('touchend', flapBird);
+            
+            // Prevent default touch behavior
+            document.addEventListener('touchstart', function(e) {
+                if (e.target === canvas || e.target === startScreen || e.target === gameOverScreen) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+            
+            document.addEventListener('touchend', function(e) {
+                if (e.target === canvas || e.target === startScreen || e.target === gameOverScreen) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
         }
         
-        birdImg.onload = checkAllImagesLoaded;
-        birdImg.onerror = function() {
-            console.log("Failed to load bird image");
-            // Create a simple bird as fallback
-            createFallbackBirdImage();
-            checkAllImagesLoaded();
-        };
+        // Initialize the game
+        function init() {
+            console.log("Initializing game...");
+            setupEventListeners();
+            loadImages();
+            draw();
+            
+            // Add a debug message to check if events are working
+            console.log("Event listeners set up. Tap/click should work now.");
+        }
         
-        pipeImg.onload = checkAllImagesLoaded;
-        pipeImg.onerror = function() {
-            console.log("Failed to load pipe image");
-            // Create a simple pipe as fallback
-            createFallbackPipeImage();
-            checkAllImagesLoaded();
-        };
-        
+        // Fallback image creation functions
         function createFallbackBirdImage() {
             const canvas = document.createElement('canvas');
             canvas.width = 100;
@@ -597,6 +663,7 @@
             ctx.fill();
             
             birdImg.src = canvas.toDataURL();
+            checkAllImagesLoaded();
         }
         
         function createFallbackPipeImage() {
@@ -615,9 +682,16 @@
             ctx.fillRect(0, 370, 100, 30);
             
             pipeImg.src = canvas.toDataURL();
+            checkAllImagesLoaded();
         }
         
-        console.log("Game initialized. Press SPACE or TAP to play!");
+        // Start the game when page loads
+        window.addEventListener('load', init);
+        
+        // Also try initializing if DOM is already ready
+        if (document.readyState === 'complete') {
+            init();
+        }
     </script>
 </body>
 </html>
