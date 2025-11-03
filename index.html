@@ -124,6 +124,7 @@
             pointer-events: none;
         }
         
+        /* Mobile-specific styles */
         @media (max-width: 768px) {
             .start-screen h1 {
                 font-size: 10vw;
@@ -164,6 +165,39 @@
             50% { opacity: 1; }
             100% { opacity: 0.7; }
         }
+
+        /* Mobile flap button */
+        .mobile-flap-btn {
+            position: absolute;
+            bottom: 5vh;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 60px;
+            background-color: rgba(76, 175, 80, 0.8);
+            border: 3px solid white;
+            border-radius: 30px;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 25;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .mobile-flap-btn:active {
+            background-color: rgba(76, 175, 80, 1);
+            transform: translateX(-50%) scale(0.95);
+        }
+
+        @media (max-width: 768px) {
+            .mobile-flap-btn {
+                display: flex;
+            }
+        }
     </style>
 </head>
 <body>
@@ -181,16 +215,17 @@
         <p>Noobada player</p>
     </div>
 
+    <!-- Mobile flap button -->
+    <div class="mobile-flap-btn" id="mobile-flap-btn">FLAP</div>
+
     <!-- Background music during gameplay -->
     <audio id="background-music" loop>
-        <!-- Replace with your background music -->
         <source src="./music.m4a" type="audio/mpeg">
         <source src="./music.mp3" type="audio/mpeg">
     </audio>
 
     <!-- Game over music -->
     <audio id="game-over-music">
-        <!-- Replace with your game over music -->
         <source src="./over.m4a" type="audio/mpeg">
         <source src="./over.mp3" type="audio/mpeg">
     </audio>
@@ -203,19 +238,11 @@
         const finalScoreDisplay = document.getElementById('final-score');
         const gameOverScreen = document.getElementById('game-over');
         const startScreen = document.getElementById('start-screen');
+        const mobileFlapBtn = document.getElementById('mobile-flap-btn');
         const backgroundMusic = document.getElementById('background-music');
         const gameOverMusic = document.getElementById('game-over-music');
 
-        // Set canvas to full screen
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
-
-        // Game variables
+        // Game variables - INITIALIZE sizes first!
         let gameRunning = false;
         let gameStarted = false;
         let score = 0;
@@ -225,18 +252,36 @@
         
         // Calculate sizes based on screen dimensions
         function getSizes() {
+            const isMobile = window.innerWidth <= 768;
             const baseSize = Math.min(canvas.width, canvas.height);
+            
             return {
-                birdSize: baseSize / 15,
-                pipeWidth: baseSize / 8,
-                pipeGap: baseSize / 3,
-                groundHeight: baseSize / 8,
-                pipeSpeed: canvas.width / 200
+                birdSize: baseSize / (isMobile ? 10 : 20),
+                pipeWidth: baseSize / (isMobile ? 6 : 8),
+                pipeGap: baseSize / (isMobile ? 1.5 : 2),
+                groundHeight: baseSize / (isMobile ? 3 : 5),
+                pipeSpeed: canvas.width / (isMobile ? 150 : 200),
+                gravity: isMobile ? 0.1 : 0.4,
+                jump: isMobile ? -4 : -4
             };
         }
         
+        // Initialize sizes immediately
         let sizes = getSizes();
         
+        // Set canvas to full screen - FIXED: moved after sizes initialization
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            // Recalculate sizes when screen resizes
+            sizes = getSizes();
+            if (bird && bird.reset) {
+                bird.reset();
+            }
+        }
+        
+        window.addEventListener('resize', resizeCanvas);
+
         // Load images with error handling
         let birdImg = new Image();
         let pipeImg = new Image();
@@ -277,15 +322,15 @@
             }
         }
 
-        // Bird object
+        // Bird object - FIXED: moved after sizes initialization
         const bird = {
             x: canvas.width / 5,
             y: canvas.height / 2,
             width: sizes.birdSize,
             height: sizes.birdSize,
-            gravity: 0.5,
+            gravity: sizes.gravity,
             velocity: 0,
-            jump: -8,
+            jump: sizes.jump,
             
             draw: function() {
                 // Create rounded bird effect
@@ -326,9 +371,10 @@
                 this.y = canvas.height / 2;
                 this.velocity = 0;
                 // Update sizes in case screen was resized
-                sizes = getSizes();
                 this.width = sizes.birdSize;
                 this.height = sizes.birdSize;
+                this.gravity = sizes.gravity;
+                this.jump = sizes.jump;
                 this.x = canvas.width / 5;
             }
         };
@@ -354,12 +400,16 @@
             },
             
             update: function() {
-                // Add new pipe every 120 frames
-                if (frames % 120 === 0) {
+                // Add new pipe with mobile-optimized timing
+                const pipeInterval = window.innerWidth <= 768 ? 140 : 120;
+                if (frames % pipeInterval === 0) {
                     const pipeHeight = canvas.height / 2;
+                    const minPipeY = -pipeHeight * 0.3;
+                    const maxPipeY = -pipeHeight * 0.7;
+                    
                     this.position.push({
                         x: canvas.width,
-                        y: -pipeHeight * (0.2 + Math.random() * 0.5),
+                        y: minPipeY + (maxPipeY - minPipeY) * Math.random(),
                         width: sizes.pipeWidth,
                         height: pipeHeight,
                         passed: false
@@ -402,8 +452,6 @@
             
             reset: function() {
                 this.position = [];
-                // Update sizes in case screen was resized
-                sizes = getSizes();
             }
         };
         
@@ -589,49 +637,61 @@
             }
         }
         
-        // Improved event listeners
+        // Improved event listeners - FIXED spacebar issue
         function setupEventListeners() {
-            // Keyboard controls
+            // Keyboard controls - SIMPLIFIED and more reliable
             document.addEventListener('keydown', function(e) {
-                if (e.code === 'Space') {
+                if (e.code === 'Space' || e.key === ' ' || e.keyCode === 32) {
+                    console.log("Spacebar pressed - starting/flapping");
                     flapBird();
                     e.preventDefault();
+                    return false;
                 }
             });
             
-            // Click controls for both start screen and canvas
+            // Click controls
             startScreen.addEventListener('click', flapBird);
-            startScreen.addEventListener('touchend', flapBird);
-            
             canvas.addEventListener('click', flapBird);
-            canvas.addEventListener('touchend', flapBird);
-            
             gameOverScreen.addEventListener('click', flapBird);
-            gameOverScreen.addEventListener('touchend', flapBird);
+            mobileFlapBtn.addEventListener('click', flapBird);
             
-            // Prevent default touch behavior
-            document.addEventListener('touchstart', function(e) {
-                if (e.target === canvas || e.target === startScreen || e.target === gameOverScreen) {
-                    e.preventDefault();
-                }
-            }, { passive: false });
+            // Touch controls
+            startScreen.addEventListener('touchend', function(e) {
+                flapBird();
+                e.preventDefault();
+            });
             
-            document.addEventListener('touchend', function(e) {
-                if (e.target === canvas || e.target === startScreen || e.target === gameOverScreen) {
-                    e.preventDefault();
-                }
-            }, { passive: false });
+            canvas.addEventListener('touchend', function(e) {
+                flapBird();
+                e.preventDefault();
+            });
+            
+            gameOverScreen.addEventListener('touchend', function(e) {
+                flapBird();
+                e.preventDefault();
+            });
+            
+            mobileFlapBtn.addEventListener('touchend', function(e) {
+                flapBird();
+                e.preventDefault();
+            });
         }
         
         // Initialize the game
         function init() {
             console.log("Initializing game...");
-            setupEventListeners();
-            loadImages();
-            draw();
             
-            // Add a debug message to check if events are working
-            console.log("Event listeners set up. Tap/click should work now.");
+            // Set canvas size first
+            resizeCanvas();
+            
+            // Setup event listeners
+            setupEventListeners();
+            
+            // Load images
+            loadImages();
+            
+            console.log("Game initialized for:", window.innerWidth <= 768 ? "Mobile" : "Desktop");
+            console.log("Press SPACE or click/tap to start!");
         }
         
         // Fallback image creation functions
